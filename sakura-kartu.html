@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>さくらカード — Sakura Kartu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;800&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#fffaf8; --bg-grad-a:#fff3f6; --bg-grad-b:#fff9f0;
+  --surface:#ffffff; --surface-2:#fff5f8;
+  --ink:#3a2a30; --ink-soft:#8a7178; --ink-faint:#c9b6bc;
+  --pink:#e0668c; --pink-deep:#b8355c; --pink-pale:#ffe3ec;
+  --indigo:#3f7f96; --indigo-deep:#2c5c6e; --indigo-pale:#e1f1f4;
+  --gold:#c99a2e; --line:#f3dde2; --line-strong:#eec3d0;
+  --shadow: 0 10px 30px -12px rgba(184,53,92,.25);
+  --radius-card:28px; --radius-pill:999px; --radius-box:16px;
+}
+[data-theme="dark"]{
+  --bg:#181016; --bg-grad-a:#1d1219; --bg-grad-b:#171019;
+  --surface:#241820; --surface-2:#2c1c25;
+  --ink:#f5e8ec; --ink-soft:#c9a7b2; --ink-faint:#7c5f68;
+  --pink:#ff8fb0; --pink-deep:#ffb0c8; --pink-pale:#3a2029;
+  --indigo:#7fc3d6; --indigo-deep:#a3d8e6; --indigo-pale:#1c2f34;
+  --gold:#e6be5c; --line:#3a2530; --line-strong:#4a2e3a;
+  --shadow: 0 10px 30px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Zen Maru Gothic', sans-serif;
+  background: radial-gradient(1200px 600px at 10% -10%, var(--bg-grad-a), transparent),
+              radial-gradient(1200px 600px at 110% 10%, var(--bg-grad-b), transparent),
+              var(--bg);
+  color:var(--ink);
+  min-height:100vh;
+  transition: background .4s ease, color .4s ease;
+  overflow-x:hidden;
+}
+h1,h2,h3{font-family:'Shippori Mincho', serif; margin:0}
+button, select, input, textarea{font-family:inherit}
+.hidden{display:none !important}
+
+/* ---------- sakura petals ---------- */
+#petals{position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden}
+.petal{position:absolute; top:-40px; opacity:.75; will-change:transform;
+  animation-name:fall, sway; animation-timing-function:linear, ease-in-out; animation-iteration-count:infinite;}
+@keyframes fall{ from{transform:translateY(-5vh) rotate(0deg)} to{transform:translateY(105vh) rotate(400deg)} }
+@keyframes sway{ 0%,100%{margin-left:0px} 50%{margin-left:40px} }
+@media (prefers-reduced-motion: reduce){ .petal{animation:none; display:none} }
+
+/* ---------- layout ---------- */
+.app{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:20px 18px 60px}
+header.top{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:6px 4px 18px}
+.brand{display:flex; align-items:center; gap:12px}
+.brand-mark{font-size:30px; line-height:1}
+.brand-text h1{font-size:22px; font-weight:800; color:var(--pink-deep); letter-spacing:.5px}
+.brand-text p{margin:0; font-size:12px; color:var(--ink-soft)}
+.top-actions{display:flex; align-items:center; gap:8px}
+.icon-btn{
+  width:42px; height:42px; border-radius:var(--radius-pill); border:1px solid var(--line);
+  background:var(--surface); color:var(--ink); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:18px; transition:transform .15s ease, box-shadow .15s ease, background .2s;
+}
+.icon-btn:hover{transform:translateY(-2px); box-shadow:var(--shadow)}
+.icon-btn:active{transform:translateY(0)}
+
+.tabs{display:flex; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-pill); padding:4px; gap:4px}
+.tab-btn{border:none; background:transparent; padding:9px 18px; border-radius:var(--radius-pill); cursor:pointer; font-weight:700; color:var(--ink-soft); font-size:14px}
+.tab-btn.active{background:linear-gradient(135deg, var(--pink), var(--pink-deep)); color:#fff; box-shadow:var(--shadow)}
+
+.menu-wrap{position:relative}
+.menu-panel{position:absolute; right:0; top:50px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-box);
+  box-shadow:var(--shadow); padding:8px; min-width:230px; z-index:40}
+.menu-panel button{display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:none; padding:10px 12px;
+  border-radius:10px; cursor:pointer; color:var(--ink); font-size:14px; font-weight:500}
+.menu-panel button:hover{background:var(--surface-2)}
+.menu-sep{height:1px; background:var(--line); margin:6px 4px}
+.menu-panel button.danger{color:#c23a4f}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--radius-box); padding:12px 14px; margin-bottom:20px}
+.search-box{flex:1 1 200px; display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--line);
+  border-radius:var(--radius-pill); padding:8px 14px}
+.search-box input{border:none; background:transparent; outline:none; width:100%; color:var(--ink); font-size:14px}
+select.chip, .fav-toggle{
+  border:1px solid var(--line); background:var(--surface-2); color:var(--ink); border-radius:var(--radius-pill);
+  padding:8px 14px; font-size:13px; cursor:pointer; font-weight:600;
+}
+.fav-toggle.active{background:var(--pink-pale); border-color:var(--pink); color:var(--pink-deep)}
+.count-pill{margin-left:auto; font-size:12px; color:var(--ink-soft); background:var(--surface-2); padding:6px 12px; border-radius:var(--radius-pill)}
+
+/* ---------- study view ---------- */
+#studyView{display:flex; flex-direction:column; align-items:center; gap:18px}
+.progress-row{width:100%; max-width:420px; display:flex; align-items:center; gap:10px; font-size:12px; color:var(--ink-soft)}
+.progress-bar{flex:1; height:6px; background:var(--line); border-radius:var(--radius-pill); overflow:hidden}
+.progress-fill{height:100%; background:linear-gradient(90deg, var(--pink), var(--indigo)); border-radius:var(--radius-pill); transition:width .3s ease}
+
+.scene{perspective:1400px; width:100%; max-width:420px; height:340px}
+.flip-card{position:relative; width:100%; height:100%; transform-style:preserve-3d; transition:transform .55s cubic-bezier(.4,.2,.2,1); cursor:pointer}
+.flip-card.flipped{transform:rotateY(180deg)}
+.face{position:absolute; inset:0; backface-visibility:hidden; border-radius:var(--radius-card); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; box-shadow:var(--shadow); padding:24px; text-align:center; border:1px solid var(--line-strong)}
+.face.front{background:linear-gradient(160deg, var(--surface), var(--surface-2))}
+.face.back{transform:rotateY(180deg); background:linear-gradient(160deg, var(--surface-2), var(--surface))}
+.tag{position:absolute; top:16px; left:16px; font-size:11px; font-weight:700; padding:4px 12px; border-radius:var(--radius-pill)}
+.tag.hira{background:var(--pink-pale); color:var(--pink-deep)}
+.tag.kata{background:var(--indigo-pale); color:var(--indigo-deep)}
+.star-btn{position:absolute; top:12px; right:12px; background:none; border:none; font-size:22px; cursor:pointer; color:var(--ink-faint)}
+.star-btn.on{color:var(--gold)}
+.kana-big{font-family:'Shippori Mincho', serif; font-size:110px; font-weight:600; line-height:1; color:var(--ink)}
+.romaji-big{font-size:46px; font-weight:900; color:var(--pink-deep); letter-spacing:1px}
+.note-small{margin-top:10px; font-size:13px; color:var(--ink-soft); max-width:280px}
+.hint-small{position:absolute; bottom:14px; font-size:11px; color:var(--ink-faint)}
+
+.study-controls{display:flex; align-items:center; gap:12px}
+.round-btn{width:52px; height:52px; border-radius:50%; border:1px solid var(--line); background:var(--surface); cursor:pointer;
+  font-size:20px; display:flex; align-items:center; justify-content:center; color:var(--ink); box-shadow:var(--shadow)}
+.round-btn:hover{transform:translateY(-2px)}
+.pill-btn{border:none; padding:12px 22px; border-radius:var(--radius-pill); font-weight:800; font-size:14px; cursor:pointer;
+  background:linear-gradient(135deg, var(--pink), var(--pink-deep)); color:#fff; box-shadow:var(--shadow)}
+.ghost-btn{border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:11px 20px; border-radius:var(--radius-pill); cursor:pointer; font-weight:700; font-size:13px}
+.study-empty{padding:60px 20px; text-align:center; color:var(--ink-soft)}
+
+/* ---------- manage view ---------- */
+#manageView{display:flex; flex-direction:column; gap:16px}
+.manage-head{display:flex; justify-content:space-between; align-items:center}
+.grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:14px}
+.mini-card{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:20px; padding:16px 10px 12px;
+  text-align:center; box-shadow:0 4px 16px -10px rgba(0,0,0,.2); transition:transform .15s ease}
+.mini-card:hover{transform:translateY(-3px)}
+.mini-card .tag{position:static; display:inline-block; margin-bottom:8px}
+.mini-kana{font-family:'Shippori Mincho', serif; font-size:38px; color:var(--ink)}
+.mini-romaji{font-size:13px; font-weight:800; color:var(--pink-deep); margin-top:2px}
+.mini-actions{display:flex; justify-content:center; gap:6px; margin-top:10px}
+.mini-actions button{border:none; background:var(--surface-2); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:13px; color:var(--ink-soft)}
+.mini-star{position:absolute; top:8px; right:8px; background:none; border:none; font-size:16px; color:var(--ink-faint); cursor:pointer}
+.mini-star.on{color:var(--gold)}
+.empty-state{padding:50px 20px; text-align:center; color:var(--ink-soft); background:var(--surface); border:1px dashed var(--line-strong); border-radius:var(--radius-box)}
+
+/* ---------- modal ---------- */
+.overlay{position:fixed; inset:0; background:rgba(30,15,20,.45); display:flex; align-items:center; justify-content:center; z-index:100; padding:16px}
+.modal{background:var(--surface); border-radius:var(--radius-card); padding:26px; width:100%; max-width:420px; box-shadow:var(--shadow); border:1px solid var(--line-strong)}
+.modal h3{font-size:19px; margin-bottom:16px; color:var(--pink-deep)}
+.field{margin-bottom:14px}
+.field label{display:block; font-size:12px; font-weight:700; color:var(--ink-soft); margin-bottom:5px}
+.field input, .field select, .field textarea{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--surface-2); color:var(--ink); font-size:14px; outline:none}
+.field textarea{resize:vertical; min-height:60px}
+.field-row{display:flex; gap:10px}
+.field-row .field{flex:1}
+.checkline{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft)}
+.modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:8px}
+.modal.confirm p{color:var(--ink-soft); font-size:14px; line-height:1.5}
+
+/* ---------- toast ---------- */
+#toastRoot{position:fixed; top:18px; right:18px; z-index:200; display:flex; flex-direction:column; gap:10px}
+.toast{background:var(--surface); border:1px solid var(--line-strong); box-shadow:var(--shadow); border-radius:14px; padding:12px 16px;
+  display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; min-width:220px; animation:toastIn .25s ease}
+.toast.success{border-left:4px solid #4caf6d}
+.toast.error{border-left:4px solid #c23a4f}
+.toast.info{border-left:4px solid var(--indigo)}
+@keyframes toastIn{ from{opacity:0; transform:translateX(20px)} to{opacity:1; transform:translateX(0)} }
+
+/* ---------- print ---------- */
+#printArea{display:none}
+@media print{
+  body *{visibility:hidden}
+  #printArea, #printArea *{visibility:visible}
+  #printArea{display:block !important; position:absolute; top:0; left:0; width:100%; padding:20px}
+  #printArea table{width:100%; border-collapse:collapse; font-family:'Zen Maru Gothic',sans-serif}
+  #printArea th, #printArea td{border:1px solid #ccc; padding:6px 10px; font-size:13px; text-align:left}
+  #printArea h2{font-family:'Shippori Mincho',serif; margin-bottom:4px}
+}
+
+footer.app-footer{text-align:center; color:var(--ink-faint); font-size:11px; margin-top:40px}
+
+@media (max-width:520px){
+  .kana-big{font-size:84px}
+  .romaji-big{font-size:34px}
+  .scene{height:300px}
+}
+</style>
+</head>
+<body>
+
+<div id="petals"></div>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark">🌸</div>
+      <div class="brand-text">
+        <h1>さくらカード</h1>
+        <p>Sakura Kartu — Belajar Hiragana &amp; Katakana</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="tabs">
+        <button class="tab-btn active" data-view="study">Belajar</button>
+        <button class="tab-btn" data-view="manage">Kelola</button>
+      </div>
+      <button class="icon-btn" id="themeBtn" title="Ganti tema">🌙</button>
+      <div class="menu-wrap">
+        <button class="icon-btn" id="menuBtn" title="Menu data">⋮</button>
+        <div class="menu-panel hidden" id="menuPanel">
+          <button id="btnExportJson">⬇️ Ekspor JSON</button>
+          <button id="btnImportJson">⬆️ Impor JSON</button>
+          <button id="btnExportExcel">📊 Ekspor Excel</button>
+          <button id="btnPrint">🖨️ Cetak / PDF</button>
+          <div class="menu-sep"></div>
+          <button id="btnResetSettings">⚙️ Reset Pengaturan</button>
+          <button class="danger" id="btnResetData">🗑️ Reset Semua Data</button>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept="application/json" class="hidden">
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search-box">
+      <span>🔍</span>
+      <input type="text" id="searchInput" placeholder="Cari karakter, romaji, atau catatan...">
+    </div>
+    <select class="chip" id="scriptFilter">
+      <option value="all">Semua Skrip</option>
+      <option value="hiragana">Hiragana</option>
+      <option value="katakana">Katakana</option>
+    </select>
+    <select class="chip" id="groupFilter">
+      <option value="all">Semua Kategori</option>
+      <option value="dasar">Dasar (Gojūon)</option>
+      <option value="dakuten">Dakuten / Handakuten</option>
+      <option value="kombinasi">Kombinasi (Yōon)</option>
+      <option value="custom">Custom Saya</option>
+    </select>
+    <select class="chip" id="sortSelect">
+      <option value="default">Urutan Standar</option>
+      <option value="romajiAsc">Romaji A-Z</option>
+      <option value="romajiDesc">Romaji Z-A</option>
+      <option value="kana">Karakter</option>
+      <option value="newest">Terbaru Ditambahkan</option>
+    </select>
+    <button class="fav-toggle" id="favToggle">♥ Favorit</button>
+    <span class="count-pill" id="countPill">0 kartu</span>
+  </div>
+
+  <!-- STUDY VIEW -->
+  <section id="studyView">
+    <div class="progress-row">
+      <span id="progressLabel">0 / 0</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+    <div class="scene">
+      <div class="flip-card" id="flipCard">
+        <div class="face front" id="faceFront"></div>
+        <div class="face back" id="faceBack"></div>
+      </div>
+    </div>
+    <div class="study-controls">
+      <button class="round-btn" id="prevBtn" title="Sebelumnya">←</button>
+      <button class="ghost-btn" id="shuffleBtn">🔀 Acak</button>
+      <button class="pill-btn" id="flipBtn">Balik Kartu</button>
+      <button class="round-btn" id="nextBtn" title="Berikutnya">→</button>
+    </div>
+  </section>
+
+  <!-- MANAGE VIEW -->
+  <section id="manageView" class="hidden">
+    <div class="manage-head">
+      <h2 style="font-size:17px; color:var(--ink-soft); font-weight:700">Kelola Kartu</h2>
+      <button class="pill-btn" id="addCardBtn">+ Tambah Kartu</button>
+    </div>
+    <div class="grid" id="cardGrid"></div>
+  </section>
+
+  <footer class="app-footer">Dibuat untuk belajar suku kata Jepang · data tersimpan di sesi ini, gunakan Ekspor JSON untuk menyimpan progres</footer>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+<div id="printArea"></div>
+
+<script>
+/* ================= DATA ================= */
+const TRIPLES = {
+  dasar: [
+    ['a','あ','ア'],['i','い','イ'],['u','う','ウ'],['e','え','エ'],['o','お','オ'],
+    ['ka','か','カ'],['ki','き','キ'],['ku','く','ク'],['ke','け','ケ'],['ko','こ','コ'],
+    ['sa','さ','サ'],['shi','し','シ'],['su','す','ス'],['se','せ','セ'],['so','そ','ソ'],
+    ['ta','た','タ'],['chi','ち','チ'],['tsu','つ','ツ'],['te','て','テ'],['to','と','ト'],
+    ['na','な','ナ'],['ni','に','ニ'],['nu','ぬ','ヌ'],['ne','ね','ネ'],['no','の','ノ'],
+    ['ha','は','ハ'],['hi','ひ','ヒ'],['fu','ふ','フ'],['he','へ','ヘ'],['ho','ほ','ホ'],
+    ['ma','ま','マ'],['mi','み','ミ'],['mu','む','ム'],['me','め','メ'],['mo','も','モ'],
+    ['ya','や','ヤ'],['yu','ゆ','ユ'],['yo','よ','ヨ'],
+    ['ra','ら','ラ'],['ri','り','リ'],['ru','る','ル'],['re','れ','レ'],['ro','ろ','ロ'],
+    ['wa','わ','ワ'],['wo','を','ヲ'],['n','ん','ン']
+  ],
+  dakuten: [
+    ['ga','が','ガ'],['gi','ぎ','ギ'],['gu','ぐ','グ'],['ge','げ','ゲ'],['go','ご','ゴ'],
+    ['za','ざ','ザ'],['ji','じ','ジ'],['zu','ず','ズ'],['ze','ぜ','ゼ'],['zo','ぞ','ゾ'],
+    ['da','だ','ダ'],['ji','ぢ','ヂ'],['zu','づ','ヅ'],['de','で','デ'],['do','ど','ド'],
+    ['ba','ば','バ'],['bi','び','ビ'],['bu','ぶ','ブ'],['be','べ','ベ'],['bo','ぼ','ボ'],
+    ['pa','ぱ','パ'],['pi','ぴ','ピ'],['pu','ぷ','プ'],['pe','ぺ','ペ'],['po','ぽ','ポ']
+  ],
+  kombinasi: [
+    ['kya','きゃ','キャ'],['kyu','きゅ','キュ'],['kyo','きょ','キョ'],
+    ['sha','しゃ','シャ'],['shu','しゅ','シュ'],['sho','しょ','ショ'],
+    ['cha','ちゃ','チャ'],['chu','ちゅ','チュ'],['cho','ちょ','チョ'],
+    ['nya','にゃ','ニャ'],['nyu','にゅ','ニュ'],['nyo','にょ','ニョ'],
+    ['hya','ひゃ','ヒャ'],['hyu','ひゅ','ヒュ'],['hyo','ひょ','ヒョ'],
+    ['mya','みゃ','ミャ'],['myu','みゅ','ミュ'],['myo','みょ','ミョ'],
+    ['rya','りゃ','リャ'],['ryu','りゅ','リュ'],['ryo','りょ','リョ'],
+    ['gya','ぎゃ','ギャ'],['gyu','ぎゅ','ギュ'],['gyo','ぎょ','ギョ'],
+    ['ja','じゃ','ジャ'],['ju','じゅ','ジュ'],['jo','じょ','ジョ'],
+    ['bya','びゃ','ビャ'],['byu','びゅ','ビュ'],['byo','びょ','ビョ'],
+    ['pya','ぴゃ','ピャ'],['pyu','ぴゅ','ピュ'],['pyo','ぴょ','ピョ']
+  ]
+};
+
+function buildDefaultDeck(){
+  let id = 1;
+  const deck = [];
+  for(const group of Object.keys(TRIPLES)){
+    for(const [romaji, hira, kata] of TRIPLES[group]){
+      deck.push({id:id++, type:'hiragana', group, char:hira, romaji, note:'', favorite:false});
+      deck.push({id:id++, type:'katakana', group, char:kata, romaji, note:'', favorite:false});
+    }
+  }
+  return deck;
+}
+
+const GROUP_LABEL = {dasar:'Dasar', dakuten:'Dakuten', kombinasi:'Kombinasi', custom:'Custom'};
+
+/* ================= STATE ================= */
+let cards = buildDefaultDeck();
+let nextId = cards.length + 1;
+let state = {
+  view:'study', theme:'light', search:'', script:'all', group:'all', sort:'default', favOnly:false,
+  studyIndex:0, flipped:false, editingId:null
+};
+const DEFAULT_SETTINGS = {theme:'light', script:'all', group:'all', sort:'default', favOnly:false, search:''};
+
+/* ================= HELPERS ================= */
+function getFiltered(){
+  let list = cards.filter(c=>{
+    if(state.script!=='all' && c.type!==state.script) return false;
+    if(state.group!=='all' && c.group!==state.group) return false;
+    if(state.favOnly && !c.favorite) return false;
+    if(state.search){
+      const q = state.search.toLowerCase();
+      if(!(c.char.includes(state.search) || c.romaji.toLowerCase().includes(q) || (c.note||'').toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
+  switch(state.sort){
+    case 'romajiAsc': list.sort((a,b)=>a.romaji.localeCompare(b.romaji)); break;
+    case 'romajiDesc': list.sort((a,b)=>b.romaji.localeCompare(a.romaji)); break;
+    case 'kana': list.sort((a,b)=>a.char.localeCompare(b.char,'ja')); break;
+    case 'newest': list.sort((a,b)=>b.id-a.id); break;
+    default: break;
+  }
+  return list;
+}
+
+function toast(msg, type='success'){
+  const root = document.getElementById('toastRoot');
+  const el = document.createElement('div');
+  el.className = 'toast '+type;
+  const icon = type==='success'?'🌸':type==='error'?'⚠️':'ℹ️';
+  el.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  root.appendChild(el);
+  setTimeout(()=>{ el.style.transition='opacity .3s ease'; el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, 2600);
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ================= RENDER: TOOLBAR / COUNT ================= */
+function renderCount(){
+  document.getElementById('countPill').textContent = getFiltered().length + ' kartu';
+}
+
+/* ================= RENDER: STUDY VIEW ================= */
+function renderStudy(){
+  const list = getFiltered();
+  if(state.studyIndex >= list.length) state.studyIndex = 0;
+  const total = list.length;
+  const idx = state.studyIndex;
+  document.getElementById('progressLabel').textContent = total? `${idx+1} / ${total}` : '0 / 0';
+  document.getElementById('progressFill').style.width = total? ((idx+1)/total*100)+'%' : '0%';
+
+  const scene = document.querySelector('.scene');
+  const flipCard = document.getElementById('flipCard');
+  const front = document.getElementById('faceFront');
+  const back = document.getElementById('faceBack');
+
+  if(!total){
+    scene.style.display='none';
+    if(!document.getElementById('studyEmptyMsg')){
+      const div = document.createElement('div');
+      div.id='studyEmptyMsg'; div.className='study-empty';
+      div.innerHTML = '🌸 Tidak ada kartu yang cocok dengan filter ini.';
+      document.getElementById('studyView').insertBefore(div, document.querySelector('.study-controls'));
+    }
+    document.querySelector('.study-controls').style.display='none';
+    return;
+  }
+  scene.style.display='';
+  document.querySelector('.study-controls').style.display='flex';
+  const existingEmpty = document.getElementById('studyEmptyMsg');
+  if(existingEmpty) existingEmpty.remove();
+
+  const c = list[idx];
+  flipCard.classList.toggle('flipped', state.flipped);
+  const tagClass = c.type==='hiragana'?'hira':'kata';
+  const tagLabel = c.type==='hiragana'?'Hiragana':'Katakana';
+
+  front.innerHTML = `
+    <span class="tag ${tagClass}">${tagLabel} · ${GROUP_LABEL[c.group]}</span>
+    <button class="star-btn ${c.favorite?'on':''}" data-fav="${c.id}">${c.favorite?'★':'☆'}</button>
+    <div class="kana-big">${escapeHtml(c.char)}</div>
+    <span class="hint-small">Ketuk kartu untuk melihat romaji</span>
+  `;
+  back.innerHTML = `
+    <span class="tag ${tagClass}">${tagLabel} · ${GROUP_LABEL[c.group]}</span>
+    <button class="star-btn ${c.favorite?'on':''}" data-fav="${c.id}">${c.favorite?'★':'☆'}</button>
+    <div class="romaji-big">${escapeHtml(c.romaji)}</div>
+    ${c.note?`<div class="note-small">${escapeHtml(c.note)}</div>`:''}
+    <span class="hint-small">Ketuk lagi untuk kembali</span>
+  `;
+}
+
+/* ================= RENDER: MANAGE VIEW ================= */
+function renderManage(){
+  const list = getFiltered();
+  const grid = document.getElementById('cardGrid');
+  if(!list.length){
+    grid.innerHTML = '';
+    grid.insertAdjacentHTML('afterend', '');
+    document.getElementById('manageView').querySelectorAll('.empty-state').forEach(e=>e.remove());
+    const empty = document.createElement('div');
+    empty.className='empty-state';
+    empty.innerHTML = '🌸 Belum ada kartu. Coba ubah filter atau tambah kartu baru.';
+    document.getElementById('manageView').appendChild(empty);
+    return;
+  }
+  document.getElementById('manageView').querySelectorAll('.empty-state').forEach(e=>e.remove());
+  grid.innerHTML = list.map(c=>{
+    const tagClass = c.type==='hiragana'?'hira':'kata';
+    const tagLabel = c.type==='hiragana'?'Hira':'Kata';
+    return `
+    <div class="mini-card">
+      <button class="mini-star ${c.favorite?'on':''}" data-fav="${c.id}">${c.favorite?'★':'☆'}</button>
+      <span class="tag ${tagClass}">${tagLabel} · ${GROUP_LABEL[c.group]}</span>
+      <div class="mini-kana">${escapeHtml(c.char)}</div>
+      <div class="mini-romaji">${escapeHtml(c.romaji)}</div>
+      <div class="mini-actions">
+        <button data-edit="${c.id}" title="Edit">✏️</button>
+        <button data-del="${c.id}" title="Hapus">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderAll(){
+  document.body.setAttribute('data-theme', state.theme);
+  document.getElementById('themeBtn').textContent = state.theme==='dark' ? '☀️' : '🌙';
+  document.getElementById('studyView').classList.toggle('hidden', state.view!=='study');
+  document.getElementById('manageView').classList.toggle('hidden', state.view!=='manage');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===state.view));
+  document.getElementById('favToggle').classList.toggle('active', state.favOnly);
+  renderCount();
+  if(state.view==='study') renderStudy(); else renderManage();
+}
+
+/* ================= MODALS ================= */
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+function openCardModal(existing){
+  state.editingId = existing ? existing.id : null;
+  const isEdit = !!existing;
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="overlay" id="overlayEl">
+      <div class="modal">
+        <h3>${isEdit? 'Ubah Kartu' : 'Tambah Kartu Baru'}</h3>
+        <div class="field-row">
+          <div class="field">
+            <label>Karakter</label>
+            <input id="fChar" maxlength="6" value="${existing?escapeHtml(existing.char):''}" placeholder="あ / ア">
+          </div>
+          <div class="field">
+            <label>Romaji</label>
+            <input id="fRomaji" value="${existing?escapeHtml(existing.romaji):''}" placeholder="a">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Skrip</label>
+            <select id="fType">
+              <option value="hiragana" ${existing&&existing.type==='hiragana'?'selected':''}>Hiragana</option>
+              <option value="katakana" ${existing&&existing.type==='katakana'?'selected':''}>Katakana</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Kategori</label>
+            <select id="fGroup">
+              <option value="dasar" ${existing&&existing.group==='dasar'?'selected':''}>Dasar</option>
+              <option value="dakuten" ${existing&&existing.group==='dakuten'?'selected':''}>Dakuten</option>
+              <option value="kombinasi" ${existing&&existing.group==='kombinasi'?'selected':''}>Kombinasi</option>
+              <option value="custom" ${!existing||existing.group==='custom'?'selected':''}>Custom</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Catatan (opsional)</label>
+          <textarea id="fNote" placeholder="Tips hafalan, contoh kata, dsb.">${existing?escapeHtml(existing.note||''):''}</textarea>
+        </div>
+        <label class="checkline"><input type="checkbox" id="fFav" ${existing&&existing.favorite?'checked':''}> Tandai sebagai favorit</label>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="cancelModal">Batal</button>
+          <button class="pill-btn" id="saveModal">${isEdit?'Simpan Perubahan':'Tambah Kartu'}</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('cancelModal').onclick = closeModal;
+  document.getElementById('overlayEl').addEventListener('click', e=>{ if(e.target.id==='overlayEl') closeModal(); });
+  document.getElementById('saveModal').onclick = ()=>{
+    const char = document.getElementById('fChar').value.trim();
+    const romaji = document.getElementById('fRomaji').value.trim();
+    const type = document.getElementById('fType').value;
+    const group = document.getElementById('fGroup').value;
+    const note = document.getElementById('fNote').value.trim();
+    const favorite = document.getElementById('fFav').checked;
+    if(!char || !romaji){ toast('Karakter dan romaji wajib diisi.', 'error'); return; }
+    if(isEdit){
+      const c = cards.find(x=>x.id===existing.id);
+      Object.assign(c, {char, romaji, type, group, note, favorite});
+      toast('Kartu berhasil diperbarui.');
+    } else {
+      cards.push({id:nextId++, char, romaji, type, group, note, favorite});
+      toast('Kartu baru berhasil ditambahkan.');
+    }
+    closeModal();
+    renderAll();
+  };
+}
+
+function openConfirm(title, msg, onYes, danger){
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="overlay" id="overlayConfirm">
+      <div class="modal confirm">
+        <h3>${title}</h3>
+        <p>${msg}</p>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="confirmNo">Batal</button>
+          <button class="pill-btn" id="confirmYes" style="${danger?'background:linear-gradient(135deg,#e0687d,#c23a4f)':''}">Ya, lanjutkan</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('confirmNo').onclick = closeModal;
+  document.getElementById('overlayConfirm').addEventListener('click', e=>{ if(e.target.id==='overlayConfirm') closeModal(); });
+  document.getElementById('confirmYes').onclick = ()=>{ closeModal(); onYes(); };
+}
+
+/* ================= DATA ACTIONS ================= */
+function exportJson(){
+  const blob = new Blob([JSON.stringify(cards, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sakura-kartu-data.json'; a.click();
+  URL.revokeObjectURL(url);
+  toast('Data berhasil diekspor sebagai JSON.');
+}
+
+function importJsonFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!Array.isArray(data)) throw new Error('format salah');
+      const valid = data.every(c=>c && typeof c.char==='string' && typeof c.romaji==='string');
+      if(!valid) throw new Error('format salah');
+      cards = data.map((c,i)=>({
+        id: i+1, char:c.char, romaji:c.romaji,
+        type: c.type==='katakana'?'katakana':'hiragana',
+        group: ['dasar','dakuten','kombinasi','custom'].includes(c.group)?c.group:'custom',
+        note: c.note||'', favorite: !!c.favorite
+      }));
+      nextId = cards.length+1;
+      state.studyIndex = 0;
+      renderAll();
+      toast('Data berhasil diimpor dari JSON.');
+    }catch(err){
+      toast('Gagal mengimpor file. Pastikan format JSON valid.', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function exportExcel(){
+  const list = getFiltered();
+  const rows = list.map(c=>({
+    Karakter: c.char, Romaji: c.romaji, Skrip: c.type==='hiragana'?'Hiragana':'Katakana',
+    Kategori: GROUP_LABEL[c.group], Favorit: c.favorite?'Ya':'Tidak', Catatan: c.note||''
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:10},{wch:10},{wch:12},{wch:12},{wch:9},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sakura Kartu');
+  XLSX.writeFile(wb, 'sakura-kartu.xlsx');
+  toast('Data berhasil diekspor ke Excel.');
+}
+
+function printCards(){
+  const list = getFiltered();
+  const rows = list.map(c=>`<tr><td style="font-size:20px">${escapeHtml(c.char)}</td><td>${escapeHtml(c.romaji)}</td><td>${c.type==='hiragana'?'Hiragana':'Katakana'}</td><td>${GROUP_LABEL[c.group]}</td><td>${c.favorite?'★':''}</td></tr>`).join('');
+  document.getElementById('printArea').innerHTML = `
+    <h2>さくらカード — Sakura Kartu</h2>
+    <p>Total: ${list.length} kartu</p>
+    <table>
+      <thead><tr><th>Karakter</th><th>Romaji</th><th>Skrip</th><th>Kategori</th><th>Favorit</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  window.print();
+}
+
+function resetSettings(){
+  Object.assign(state, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)));
+  document.getElementById('searchInput').value='';
+  document.getElementById('scriptFilter').value='all';
+  document.getElementById('groupFilter').value='all';
+  document.getElementById('sortSelect').value='default';
+  state.view='study';
+  renderAll();
+  toast('Pengaturan berhasil direset ke default.');
+}
+
+function resetData(){
+  cards = buildDefaultDeck();
+  nextId = cards.length+1;
+  state.studyIndex = 0;
+  renderAll();
+  toast('Semua data telah direset ke set kartu bawaan.');
+}
+
+/* ================= SAKURA PETALS ================= */
+function spawnPetals(){
+  const container = document.getElementById('petals');
+  container.innerHTML='';
+  const colors = ['#ffc2d1','#ffb3c6','#ffd8e4','#f7a8bd'];
+  for(let i=0;i<16;i++){
+    const p = document.createElement('div');
+    p.className='petal';
+    const size = 10 + Math.random()*10;
+    p.style.left = Math.random()*100+'vw';
+    p.style.width = size+'px'; p.style.height = size*0.8+'px';
+    p.style.background = colors[i%colors.length];
+    p.style.borderRadius='0 100% 0 100%';
+    const dur = 9+Math.random()*10;
+    p.style.animationDuration = dur+'s, '+(3+Math.random()*2)+'s';
+    p.style.animationDelay = (-Math.random()*dur)+'s, '+(-Math.random()*3)+'s';
+    container.appendChild(p);
+  }
+}
+
+/* ================= EVENTS ================= */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ state.view = btn.dataset.view; renderAll(); });
+});
+
+document.getElementById('themeBtn').addEventListener('click', ()=>{
+  state.theme = state.theme==='dark' ? 'light' : 'dark';
+  renderAll();
+});
+
+document.getElementById('menuBtn').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  document.getElementById('menuPanel').classList.toggle('hidden');
+});
+document.addEventListener('click', ()=> document.getElementById('menuPanel').classList.add('hidden'));
+
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  state.search = e.target.value; state.studyIndex = 0; renderAll();
+});
+document.getElementById('scriptFilter').addEventListener('change', (e)=>{ state.script=e.target.value; state.studyIndex=0; renderAll(); });
+document.getElementById('groupFilter').addEventListener('change', (e)=>{ state.group=e.target.value; state.studyIndex=0; renderAll(); });
+document.getElementById('sortSelect').addEventListener('change', (e)=>{ state.sort=e.target.value; state.studyIndex=0; renderAll(); });
+document.getElementById('favToggle').addEventListener('click', ()=>{ state.favOnly=!state.favOnly; state.studyIndex=0; renderAll(); });
+
+document.getElementById('flipCard').addEventListener('click', ()=>{ state.flipped=!state.flipped; renderStudy(); });
+document.getElementById('flipBtn').addEventListener('click', ()=>{ state.flipped=!state.flipped; renderStudy(); });
+document.getElementById('prevBtn').addEventListener('click', ()=>{
+  const total = getFiltered().length; if(!total) return;
+  state.studyIndex = (state.studyIndex-1+total)%total; state.flipped=false; renderStudy();
+});
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  const total = getFiltered().length; if(!total) return;
+  state.studyIndex = (state.studyIndex+1)%total; state.flipped=false; renderStudy();
+});
+document.getElementById('shuffleBtn').addEventListener('click', ()=>{
+  const total = getFiltered().length; if(!total) return;
+  state.studyIndex = Math.floor(Math.random()*total); state.flipped=false; renderStudy();
+  toast('Kartu diacak.', 'info');
+});
+
+document.getElementById('addCardBtn').addEventListener('click', ()=> openCardModal(null));
+
+document.getElementById('studyView').addEventListener('click', (e)=>{
+  const favBtn = e.target.closest('[data-fav]');
+  if(favBtn){
+    e.stopPropagation();
+    const c = cards.find(x=>x.id==favBtn.dataset.fav);
+    c.favorite = !c.favorite;
+    renderStudy();
+  }
+});
+
+document.getElementById('cardGrid').addEventListener('click', (e)=>{
+  const favBtn = e.target.closest('[data-fav]');
+  const editBtn = e.target.closest('[data-edit]');
+  const delBtn = e.target.closest('[data-del]');
+  if(favBtn){
+    const c = cards.find(x=>x.id==favBtn.dataset.fav);
+    c.favorite = !c.favorite;
+    renderManage();
+  } else if(editBtn){
+    const c = cards.find(x=>x.id==editBtn.dataset.edit);
+    openCardModal(c);
+  } else if(delBtn){
+    const c = cards.find(x=>x.id==delBtn.dataset.del);
+    openConfirm('Hapus Kartu?', `Kartu "${escapeHtml(c.char)} (${escapeHtml(c.romaji)})" akan dihapus permanen dari sesi ini.`, ()=>{
+      cards = cards.filter(x=>x.id!==c.id);
+      renderAll();
+      toast('Kartu berhasil dihapus.');
+    }, true);
+  }
+});
+
+document.getElementById('btnExportJson').addEventListener('click', ()=>{ exportJson(); document.getElementById('menuPanel').classList.add('hidden'); });
+document.getElementById('btnImportJson').addEventListener('click', ()=>{ document.getElementById('fileInput').click(); document.getElementById('menuPanel').classList.add('hidden'); });
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  if(e.target.files[0]) importJsonFile(e.target.files[0]);
+  e.target.value='';
+});
+document.getElementById('btnExportExcel').addEventListener('click', ()=>{ exportExcel(); document.getElementById('menuPanel').classList.add('hidden'); });
+document.getElementById('btnPrint').addEventListener('click', ()=>{ printCards(); document.getElementById('menuPanel').classList.add('hidden'); });
+document.getElementById('btnResetSettings').addEventListener('click', ()=>{
+  document.getElementById('menuPanel').classList.add('hidden');
+  openConfirm('Reset Pengaturan?', 'Tema, filter, pencarian, dan urutan akan dikembalikan ke pengaturan default. Kartu tidak akan terhapus.', resetSettings);
+});
+document.getElementById('btnResetData').addEventListener('click', ()=>{
+  document.getElementById('menuPanel').classList.add('hidden');
+  openConfirm('Reset Semua Data?', 'Semua kartu (termasuk kartu custom yang kamu tambahkan) akan dihapus dan dikembalikan ke 208 kartu bawaan. Tindakan ini tidak dapat dibatalkan.', resetData, true);
+});
+
+/* ================= INIT ================= */
+spawnPetals();
+renderAll();
+</script>
+</body>
+</html>
